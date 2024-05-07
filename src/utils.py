@@ -5,6 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 from scipy.stats import entropy
 from datetime import timedelta
+import seaborn as sns
 
 class Entropy:
     def __init__(self):
@@ -12,7 +13,9 @@ class Entropy:
         self.raw_files_path='../data/data-raw/CSV'
         self.processed_files_path='../data/data-tidy/processed_CSV'
         self.entropy_export = "../data/data-tidy/entropy_in_time.csv"
+        self.entropy_rounded_export = '../data/data-tidy/entropy_in_time_rounded.csv'
         self.entropy_in_time_df = None
+        self.df_avg_entropy = None
 
     def compute_post_entropy(self, df):
         df = df[df.voter==1]
@@ -36,8 +39,12 @@ class Entropy:
         return df[['submission_id', 'final_judg', 'created', 'entropy_in_time', 'subgraph']]
 
     def user_nodelist(self):
-        if os.path.exist(self.entropy_export):
+        
+        if os.path.exists(self.entropy_export):
             self.entropy_in_time_df = pd.read_csv(self.entropy_export)
+            print('Loading entropy in time from file...')
+            return self.entropy_in_time_df
+        
         entropy_df_merged=pd.DataFrame()
         file_list = [f for f in os.listdir(self.processed_files_path) if f.endswith('.csv')]
         pbar = tqdm(total=6366)
@@ -75,70 +82,88 @@ class Entropy:
     def hour_rounder(self, t):
         return (t.map(lambda x : x.replace(second=0, microsecond=0, minute=0, hour=x.hour)
                 +timedelta(hours=x.minute//30)))
-        
-    def entropy_in_time_plot(self):
+    
+    def entropy_rounded(self):
+        print('Executing function entropy_rounded...')
         df = pd.read_csv(self.entropy_export, low_memory=False)
         df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S.%f') # adjust types
-        print(df.final_judg.unique())
-        df_avg_entropy_before={}
-        temp = []
+        df_avg_entropy={}
 
         for subm_id, sub_df in df.groupby('submission_id'):
             sub_df.reset_index(drop=True, inplace=True)
 
-            # COMPUTE THE 18H THRESHOLD
+            # Compute the 18 hours threshold
             start = sub_df['created'].iloc[0]  # df is already sorted by time ascending
             eighteen_h = start + pd.Timedelta(18, 'h', hours=18)
             sub_df.set_index('created', inplace=False)
-
+            ''' WRONG!!! # with this the x axis will be edges, not time
             try:
                 temp.append(sub_df[sub_df['created'] > eighteen_h].index[0])
             except IndexError:
-                continue
-            #try:
-                #thresh = sub_df[sub_df['created'] > eighteen_h].index.to_list()[0]  # first timestamp over 18h
-            #except IndexError:
+                continue'''
+            try:
+                thresh = sub_df[sub_df['created'] > eighteen_h].index.to_list()[0]  # first timestamp over 18h
+            except IndexError:
                 #thresh = sub_df.index[-1]  # if no timestamp over 18h, then take the last timestamp
-                #continue # skip this submission
-
+                continue # skip this submission
+            
+            # Round to minutes (edges to time)
             sub_df['number'] = sub_df.index
             sub_df['time_rounded'] = self.minute_rounder(sub_df.created)
-            sub_df['time_int'] = sub_df['time_rounded'].diff().fillna(timedelta(0)).apply(
-                lambda x: x.total_seconds() / 60)
+            sub_df['time_int'] = sub_df['time_rounded'].diff().fillna(timedelta(0)).apply(lambda x: x.total_seconds() / 60)
             sub_df['time_int'] = sub_df['time_int'].cumsum()
-            #sub_df = sub_df.groupby(['time_rounded']).max() # TEMPORARY REMOVED
-            #sub_df.set_index('time_int', inplace=True) # TEMPORARY REMOVED
-
+            sub_df = sub_df.groupby(['time_rounded']).max() 
+            sub_df.set_index('time_int', inplace=True) 
             col_name =f'{subm_id}_{str(sub_df.final_judg.unique())}'
             serie = sub_df['entropy_in_time']
+            df_avg_entropy.update({col_name: serie})
 
-            #serie_2 = sub_df['entropy_in_time'][thresh:]
-            #serie_2.reset_index(drop=True, inplace=True)
-            df_avg_entropy_before.update({col_name: serie})
+        # Dictionary to DataFrame
+        df_avg_entropy = pd.DataFrame(df_avg_entropy)
+        df_avg_entropy.to_csv(self.entropy_rounded_export, index=False)
+        self.df_avg_entropy = df_avg_entropy
+        
+    def entropy_in_time_plot(self):
 
-        df_avg_entropy_before = pd.DataFrame(df_avg_entropy_before)
-        #df_avg_entropy_before['mean_at_timestamp'] = df_avg_entropy_before.mean(axis=0)
+        # Load the dataframe
+        if os.path.exists(self.entropy_rounded_export):
+            self.df_avg_entropy = pd.read_csv(self.entropy_rounded_export)
+            print('Loading entropy rounded in time from file...')
+        else:
+            self.df_avg_entropy = self.entropy_rounded()
 
-        df_avg_entropy_before = df_avg_entropy_before[df_avg_entropy_before.index < 8640]
+        # Plot
+        fig = plt.figure(figsize=(10, 5))
+        ax = plt.gca()
+        labels = ['Not the A-hole', 'Asshole', 'No A-holes here', 'Everyone Sucks']
+        colors = ['b', 'r', 'b', 'r']
+        linestyles = ['solid', 'solid', 'dashed', 'dashed']
+        for label, color, linestyle in zip(labels, colors, linestyles):
+            columns = [col for col in self.df_avg_entropy.columns if col.endswith(f"['{label}']")]
+            temp_df = self.df_avg_entropy[columns]
+            temp_df['mean_at_timestamp'] = temp_df.std(axis=1) #temp_df.mean(axis=1) # mean or variance ?
+            temp_df['time_int'] = temp_df.index
+            # Filter by duration
+            temp_df = temp_df[temp_df['time_int'] <= 2880] # 2 days
+            #plt.plot(temp_df['mean_at_timestamp'], linewidth=1.2, label=label, color=color, linestyle=linestyle)
+            sns.regplot(data=temp_df, y='mean_at_timestamp', x='time_int', label=label, color=color,
+                       line_kws=dict(alpha=1, color=color, linewidth=1.2, linestyle=linestyle),
+                       scatter_kws=dict(alpha=0.3, s=10, color=color, edgecolors='white'))
 
-        fig, (ax1) = plt.subplots(1, 1, figsize=(10, 5), dpi=600)
-        ax1.set_xticks(np.arange(0, 8641, 1440))
-        labels = [item.get_text() for item in ax1.get_xticklabels()]
+        plt.xticks(np.arange(0, 8641, 1440))
+        labels = [item.get_text() for item in ax.get_xticklabels()]
         labels = [str(int(int(label)/60)) for label in labels]
-        ax1.set_xticklabels(labels, fontsize=10)
-        ax1.set_xlabel('Hours', fontsize=12)
-        ax1.set_ylabel('Average Post Entropy', fontsize=12)
-        #ax1.set_title('Before 18h')
-        ax1.set_yticks(np.arange(0, 2.6, 0.4))
-        ax1.legend()
-
-        # threshold after 18 hours (vertical line)
-        plt.axvline(x=1080, color='green', linewidth=1, linestyle='dashed')
-        plt.axvline(x=1440, color='grey', linewidth=0.5, linestyle='dotted')
-        plt.axvline(x=2880, color='grey', linewidth=0.5, linestyle='dotted')
-        plt.axvline(x=4320, color='grey', linewidth=0.5, linestyle='dotted') # day 3
-        plt.axvline(x=5760, color='grey', linewidth=0.5, linestyle='dotted')
-        plt.axvline(x=7200, color='grey', linewidth=0.5, linestyle='dotted') # day 5
+        ax.set_xticklabels(labels, fontsize=10)
+        plt.xlabel('Hours', fontsize=12)
+        plt.ylabel('Average Post Entropy', fontsize=12)
+        plt.yticks(np.arange(0, 2.6, 0.4))
+        plt.legend()
+        
+        plt.axvline(x=1080, color='green', linewidth=1, linestyle='dashed') # threshold after 18 hours (vertical line)
+        for x in range(0, 8641, 1440): # vertical lines up to day 5
+            plt.axvline(x=x, color='grey', linewidth=0.5, linestyle='dotted') 
         plt.grid(axis='y') # add only horizontal grid
         plt.show()
         #plt.savefig('../data-analysis/paper_figs/entropy_in_time_by_final_judg.png', dpi=600)
+
+
