@@ -1,10 +1,56 @@
 #%%
 from matplotlib import pyplot as plt
-from utils import Entropy
+from utils import Entropy, Prob
 import pandas as pd
 import seaborn as sns
+import numpy as np
+import kneed
+from datetime import timedelta
+
+p = Prob()
+p.create_user_nodelist_per_post()
+exit(0)
+#%%
 
 e = Entropy()
+
+df = e.user_nodelist()
+df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S') # adjust types
+variance_list_pre_18 = []
+variance_list_post_18 = []
+
+for subm_id, sub_df in df.groupby('submission_id'):
+    sub_df.sort_values(by='created', inplace=True)
+
+    # round to 1 minute
+    sub_df['time_rounded'] = e.minute_rounder(sub_df.created)
+    sub_df['time_int'] = sub_df['time_rounded'].diff().fillna(timedelta(0)).apply(lambda x: x.total_seconds() / 60)
+    sub_df['time_int'] = sub_df['time_int'].cumsum()
+    sub_df = sub_df.groupby(['time_rounded']).max() 
+    sub_df.set_index('time_int', inplace=True) 
+    sub_df['time_int'] = sub_df.index
+    sub_df.reset_index(inplace=True, drop=True)
+    
+    # find elbow
+    kneedle = kneed.KneeLocator(x=sub_df.time_int, y=sub_df.entropy_in_time, curve="concave", direction="increasing")
+    knee_point = kneedle.knee   
+    #kneedle.plot_knee()
+
+    # compute variance elbow-->18h and 18h-->end
+    start = sub_df['time_int'].iloc[0]  # df is already sorted by time ascending
+    eighteen_h = start + 18*60 # 18 hours in minutes
+    #print(start, knee_point, eighteen_h)
+    variance_list_pre_18.append(sub_df[(sub_df['time_int'] > knee_point) & (sub_df['time_int'] < eighteen_h)].entropy_in_time.std())
+    variance_list_post_18.append(sub_df[sub_df['time_int'] >= eighteen_h].entropy_in_time.std())
+
+sns.histplot(variance_list_pre_18, bins=30, kde=True)
+sns.histplot(variance_list_post_18, bins=30, kde=True)
+plt.show()
+
+exit(0)
+
+
+
 
 #%%
 df = e.user_nodelist()

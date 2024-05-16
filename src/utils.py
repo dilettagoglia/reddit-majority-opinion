@@ -44,25 +44,15 @@ class Entropy:
 
     def compute_entropy_in_time(self, sub_df, final_judg, entropy_param=True):
         sub_df.sort_values(by='created', inplace=True)
-        df_star = sub_df[sub_df.depth<1]
-        df_per = sub_df[sub_df.depth>=1]
-        df_star['subgraph'] = 'star'
-        df_per['subgraph'] = 'per'
-        df_star['vote'] = df_star['text_flair']
-        df_per['vote'] = df_per['text_flair']
+        sub_df['final_judg'] = final_judg
+
         if entropy_param:
-            df_star['entropy_in_time'] = df_star.apply(lambda x: self.compute_post_entropy(df_star[df_star.created <= x.created]), axis=1)
-            df_per['entropy_in_time'] = df_per.apply(lambda x: self.compute_post_entropy(df_per[df_per.created <= x.created]), axis=1)
+            sub_df['entropy_in_time'] = sub_df.apply(lambda x: self.compute_post_entropy(sub_df[sub_df.created <= x.created]), axis=1)
+            return sub_df[['submission_id', 'final_judg', 'created', 'entropy_in_time', 'depth', 'text_flair']]
+        
         else:
-            df_star[['ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc']] = df_star.apply(lambda x: pd.Series(self.compute_post_entropy(df_star[df_star.created <= x.created], entropy_param=False)), axis=1)
-            df_per[['ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc']] = df_per.apply(lambda x: pd.Series(self.compute_post_entropy(df_per[df_per.created <= x.created], entropy_param=False)), axis=1)
-        df_star['final_judg'] = final_judg
-        df_per['final_judg'] = final_judg
-        df=pd.concat([df_star, df_per])
-        if entropy_param:
-            return df[['submission_id', 'final_judg', 'created', 'entropy_in_time', 'subgraph']]
-        else:
-            return df[['submission_id', 'final_judg', 'created', 'ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc', 'subgraph']]
+            sub_df[['ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc']] = sub_df.apply(lambda x: pd.Series(self.compute_post_entropy(sub_df[sub_df.created <= x.created], entropy_param=False)), axis=1)
+            return sub_df[['submission_id', 'final_judg', 'created', 'ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc', 'depth', 'text_flair']]
 
     def user_nodelist(self, entropy_param=True):
 
@@ -80,23 +70,28 @@ class Entropy:
         entropy_df_merged=pd.DataFrame()
         file_list = [f for f in os.listdir(self.processed_files_path) if f.endswith('.csv')]
         pbar = tqdm(total=6366)
+        i=0
         for file_name in file_list:
             file_path = os.path.join(self.processed_files_path, file_name)
             df = pd.read_csv(file_path, low_memory=False)
             if df.shape[0] < 2: # discard posts with only one comment
                 continue
-            df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S.%f') # adjust types
-
+            df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S') # adjust types
+            
             for subm_id, sub_df in df.groupby('submission_id'): # groupby excludes NaNs so OP are not counted in the authors list
-                if sub_df.type.nunique() != 1:
-                    print('ERROR: in submissions considered', file_name, subm_id)
-                    raise ValueError
+                if i<100:
+                    if sub_df.type.nunique() != 1:
+                        print('ERROR: in submissions considered', file_name, subm_id)
+                        raise ValueError
 
-                final_judg=df[df.id==subm_id].link_flair_text.values[0]
-                entropy_df = self.compute_entropy_in_time(sub_df, final_judg, entropy_param=entropy_param)
-                entropy_df_merged = pd.concat([entropy_df_merged, entropy_df])
-                #print(entropy_df)
-                pbar.update(n=1)
+                    final_judg=df[df.id==subm_id].link_flair_text.values[0]
+                    entropy_df = self.compute_entropy_in_time(sub_df, final_judg, entropy_param=entropy_param)
+                    entropy_df_merged = pd.concat([entropy_df_merged, entropy_df])
+                    #print(entropy_df)
+                    pbar.update(n=1)
+                    i+=1
+                else:
+                    break
 
         if entropy_param:
             entropy_df_merged.to_csv(self.entropy_export, index=False)  
@@ -184,13 +179,13 @@ class Entropy:
             temp_df['mean_at_timestamp'] = temp_df.mean(axis=1) #temp_df.mean(axis=1) # mean or variance ?
             temp_df['time_int'] = temp_df.index
             # Filter by duration
-            temp_df = temp_df[temp_df['time_int'] <= 200] # limit of days in the plot
+            temp_df = temp_df[temp_df['time_int'] <= 8641] # limit of days in the plot
             #plt.plot(temp_df['mean_at_timestamp'], linewidth=1.2, label=label, color=color, linestyle=linestyle)
             sns.regplot(data=temp_df, y='mean_at_timestamp', x='time_int', order=2, label=label, color=color,
                        line_kws=dict(alpha=1, color=color, linewidth=1.2, linestyle=linestyle),
                        scatter_kws=dict(alpha=0.3, s=10, color=color, edgecolors='white'))
 
-        #plt.xticks(np.arange(0, 8641, 1440))
+        plt.xticks(np.arange(0, 8641, 1440))
         plt.xticks(np.arange(0, 500, 20))
         labels = [item.get_text() for item in ax.get_xticklabels()]
         labels = [str(int(int(label)/60)) for label in labels]
@@ -200,11 +195,35 @@ class Entropy:
         plt.yticks(np.arange(0, 2.6, 0.4))
         plt.legend()
         
-        #plt.axvline(x=1080, color='green', linewidth=1, linestyle='dashed') # threshold after 18 hours (vertical line)
-        #for x in range(0, 8641, 1440): # vertical lines up to day 5
-            #plt.axvline(x=x, color='grey', linewidth=0.5, linestyle='dotted') 
+        plt.axvline(x=1080, color='green', linewidth=1, linestyle='dashed') # threshold after 18 hours (vertical line)
+        for x in range(0, 8641, 1440): # vertical lines up to day 5
+            plt.axvline(x=x, color='grey', linewidth=0.5, linestyle='dotted') 
         plt.grid(axis='y') # add only horizontal grid
         plt.show()
         #plt.savefig('../data-analysis/paper_figs/entropy_in_time_by_final_judg.png', dpi=600)
 
-
+class Prob:
+    def __init__(self):
+        # vars
+        self.processed_files_path='data/data-tidy/processed_CSV/'
+        self.user_nodelist_export = 'data/data-tidy/user_nodelist_per_post.csv'
+    
+    def create_user_nodelist_per_post(self):
+        final_nodelist = pd.DataFrame()
+        file_list = [f for f in os.listdir(self.processed_files_path) if f.endswith('.csv')]
+        for file_name in file_list:
+            file_path = os.path.join(self.processed_files_path, file_name)
+            df = pd.read_csv(file_path, low_memory=False)
+            df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S') # adjust types
+            df['text_flair'] = df['text_flair'].fillna('')
+            for subm_id, sub_df in df.groupby('submission_id'):
+                node_df=pd.DataFrame()
+                node_df[['author', 'entering_time']] = sub_df[['created', 'author']].groupby('author').min().reset_index()
+                node_df['post'] = subm_id
+                node_df.set_index('author', inplace=True)
+                # create a column that is list of flair of all authors
+                node_df['flairs'] = sub_df.groupby('author')['text_flair'].apply(", ".join)
+                node_df.reset_index(inplace=True)
+                final_nodelist = pd.concat([node_df, final_nodelist])
+                final_nodelist.reset_index(drop=True, inplace=True)
+        final_nodelist.to_csv(self.user_nodelist_export, index=False)
