@@ -38,3 +38,6 @@ df[df['n_votes'] > 2].groupby('post').count().sort_values('flairs', ascending=Fa
 df['vote_types'] = (df[['NTA_votes', 'YTA_votes', 'ESH_votes', 'NAH_votes']] > 0).sum(axis=1)
 df_filtered = df[df['vote_types'] >= 2]
 # %%
+df_grouped = df.groupby('post').agg({'author': ['count']})
+
+# %%
