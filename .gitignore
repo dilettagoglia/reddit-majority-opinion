@@ -131,5 +131,5 @@ dmypy.json
 models/
 
 .DS_Store
-data/
 .vscode/
+/data

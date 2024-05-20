@@ -1,15 +1,15 @@
 #%%
 from matplotlib import pyplot as plt
-from utils import Entropy, Prob
+from utils import * 
 import pandas as pd
 import seaborn as sns
 import numpy as np
 import kneed
 from datetime import timedelta
 
-p = Prob()
-p.create_user_nodelist_per_post()
-exit(0)
+p = Preprocess()
+p.preprocess_votes()
+
 #%%
 
 e = Entropy()

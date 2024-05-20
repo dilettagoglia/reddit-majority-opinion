@@ -7,206 +7,126 @@ from scipy.stats import entropy
 from datetime import timedelta
 import seaborn as sns
 from sys import exit
+from sklearn.preprocessing import LabelEncoder
+import datetime as dt
+from matplotlib.patches import Patch
+from entropy_class import Entropy
 
-class Entropy:
-    def __init__(self):
-        # vars
-        self.raw_files_path='../data/data-raw/CSV'
-        self.processed_files_path='../data/data-tidy/processed_CSV/'
-        self.entropy_export = "../data/data-tidy/entropy_in_time.csv"
-        self.perc_disagreement_export = "../data/data-tidy/perc_disagreement_in_time.csv"
-        self.entropy_rounded_export = '../data/data-tidy/entropy_in_time_rounded.csv'
-        self.perc_disagreement_in_time = None
-        self.entropy_in_time_df = None
-        self.df_avg_entropy = None
+def plot_ecdf(prob_before, prob_after, labels, verdicts, t):
+    for v in range(len(verdicts)):
+        fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5), sharex=True)
 
-    def compute_post_entropy(self, df, entropy_param=True):
-        '''
-        If entropy is True, then compute the entropy of the post.
-        If entropy is False, then compute the probability of each vote in the post (e.g. NTA 90%, YTA 5%, ESH 5%, NAH 0%)
-        '''
-        dict_={'ESH':0, 'NAH':0, 'NTA':0, 'YTA':0, 'nan':0}
-        df = df[df.voter==1]
-        df['text_flair'] = df['text_flair'].fillna('nan')
-        unique_votes, counts = np.unique(list(df.text_flair), return_counts=True)
-        prob = counts / len(df.text_flair)
-        entr = round(entropy(prob, base=2), 2)
-        if entropy_param:
-            return entr
-        else:
-            dict_.update(dict(zip(unique_votes, prob)))
-            if len(dict_) == 5:
-                return dict_
+        for i, ax in enumerate(axes.flatten()):
+
+            # In order to plot the histogram we need to transform voting labels into numbers (we use LabelEncoder)
+            # TODO Note that here we are note distinguishing between people that did not vote and people that voted unsure
+                # to fix this, see the function user_nodelist_per_post()
+
+            le = LabelEncoder()
+            prob_before[labels[i]] = le.fit_transform(prob_before[labels[i]])
+            prob_after[labels[i]] = le.fit_transform(prob_after[labels[i]])
+
+            # TODO normalize x axis (thread size)
+
+            count, bins_count = np.histogram(prob_before[prob_before['final_judg'] == verdicts[v]][labels[i]], bins=10)
+            pdf = count / sum(count)
+            cdf = np.cumsum(pdf)
+            ax.plot(bins_count[1:], cdf, color='red', label='Before 18h')
+
+            count, bins_count = np.histogram(prob_after[prob_after['final_judg'] == verdicts[v]][labels[i]], bins=10)
+            pdf = count / sum(count)
+            cdf = np.cumsum(pdf)
+            ax.plot(bins_count[1:], cdf, color='green', label='After 18h')
+
+            ax.set_xlabel(f'{labels[i]}')
+
+        plt.tight_layout()
+        plt.suptitle(f'Final judg = {verdicts[v]} ({len(prob_before[prob_before["final_judg"] == verdicts[v]])} threads)')
+        #plt.savefig(f'../img/ECDF__{verdicts[v]}.png')
+        plt.show()
+
+def plot_violin_diff(prob_before, prob_after, labels, verdicts, t):
+    for v in range(len(verdicts)):
+        fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5))
+        for i, ax in enumerate(axes.flatten()):
+            sns.violinplot(prob_after[prob_after['final_judg'] == verdicts[v]][labels[i]] - prob_before[prob_before['final_judg'] == verdicts[v]][labels[i]],  
+                            ax=ax, color='blue')
+            ax.set_xlabel(f'{labels[i]}')
+            ax.set_ylabel('')
+            ax.set_ylim([-1, 1])
+            if i == 0:
+                ax.set_ylabel('Difference of probabilities (after - before)')
+
+        plt.tight_layout()
+        plt.suptitle(f'Final judg = {verdicts[v]} ({len(prob_before[prob_before["final_judg"] == verdicts[v]])} threads)')
+        plt.savefig(f'../img/Violin_diff_{str(t)}h__{verdicts[v]}.png')
+        plt.show()
+
+def plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True):
+    prob_before['hue'] = 'before'
+    prob_after['hue'] = 'after'
+    prob_together = pd.concat([prob_before, prob_after])
+
+    for v in range(len(verdicts)):
+        fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5))
+
+        for i, ax in enumerate(axes.flatten()):
+            data = prob_together[prob_together['final_judg'] == verdicts[v]]
+            data.fillna(0, inplace=True)
+            data = pd.melt(data, id_vars=['final_judg', 'hue'], value_vars=[labels[i]])
+            if violin:
+                sns.violinplot(data=data, x='variable', y='value',
+                            hue='hue', split=True, gap=.1, inner='box', inner_kws=dict(box_width=10, whis_width=1.2, color="lightgrey"),
+                            palette={"before": "r", "after": "g"},
+                            legend=None, ax=ax)
+                ax.set_ylim([-0.19, 1.19])
+                ax.grid(axis='y')
+                ax.set_xlabel('')
+                ax.set_ylabel('')
             else:
-                print(dict_)
-                raise ValueError
-                
-
-    def compute_entropy_in_time(self, sub_df, final_judg, entropy_param=True):
-        sub_df.sort_values(by='created', inplace=True)
-        sub_df['final_judg'] = final_judg
-
-        if entropy_param:
-            sub_df['entropy_in_time'] = sub_df.apply(lambda x: self.compute_post_entropy(sub_df[sub_df.created <= x.created]), axis=1)
-            return sub_df[['submission_id', 'final_judg', 'created', 'entropy_in_time', 'depth', 'text_flair']]
+                sns.histplot(data=data, x='value', hue='hue', ax=ax, color='green', kde=True, bins=10, 
+                            legend=None, palette={"before": "r", "after": "g"}, stat='count')
+                ax.set_xlabel(f'{labels[i]}')
+                ax.set_ylabel('')
+                ax.set_xlim([0, 1])
         
-        else:
-            sub_df[['ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc']] = sub_df.apply(lambda x: pd.Series(self.compute_post_entropy(sub_df[sub_df.created <= x.created], entropy_param=False)), axis=1)
-            return sub_df[['submission_id', 'final_judg', 'created', 'ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc', 'depth', 'text_flair']]
+            if i == 0:
+                ax.set_ylabel('Probability') if violin else ax.set_ylabel('Count')
 
-    def user_nodelist(self, entropy_param=True):
+        legend_elements = [Patch(facecolor='r', edgecolor='black', label=f'{str(t)}h Before'),
+                            Patch(facecolor='g', edgecolor='black', label=f'{str(t)}h After')]
+        fig.legend(handles=legend_elements, loc='upper right', ncol=len(labels))
 
-        if entropy_param:
-            if os.path.exists(self.entropy_export):
-                self.entropy_in_time_df = pd.read_csv(self.entropy_export)
-                print('Loading entropy in time from file...')
-                return self.entropy_in_time_df
-        else:
-            if os.path.exists(self.perc_disagreement_export):
-                self.perc_disagreement_in_time = pd.read_csv(self.perc_disagreement_export)
-                print('Loading percentage disagreement in time from file...')
-                return self.perc_disagreement_in_time
-            
-        entropy_df_merged=pd.DataFrame()
+        plt.tight_layout()
+        plt.suptitle(f'Final judg = {verdicts[v]} ({len(prob_before[prob_before["final_judg"] == verdicts[v]])} threads)')
+        title_str = 'Violin_compar' if violin else 'Distr'
+        plt.savefig(f'../img/{title_str}_{str(t)}h__{verdicts[v]}.png')
+        plt.show()    
+
+class Preprocess:
+    def __init__(self):
+        self.processed_files_path='../data/data-tidy/processed_CSV/'
+
+    def preprocess_votes(self):
         file_list = [f for f in os.listdir(self.processed_files_path) if f.endswith('.csv')]
-        pbar = tqdm(total=6366)
         i=0
         for file_name in file_list:
+            i += 1
             file_path = os.path.join(self.processed_files_path, file_name)
             df = pd.read_csv(file_path, low_memory=False)
-            if df.shape[0] < 2: # discard posts with only one comment
-                continue
-            df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S') # adjust types
-            
-            for subm_id, sub_df in df.groupby('submission_id'): # groupby excludes NaNs so OP are not counted in the authors list
-                if i<100:
-                    if sub_df.type.nunique() != 1:
-                        print('ERROR: in submissions considered', file_name, subm_id)
-                        raise ValueError
-
-                    final_judg=df[df.id==subm_id].link_flair_text.values[0]
-                    entropy_df = self.compute_entropy_in_time(sub_df, final_judg, entropy_param=entropy_param)
-                    entropy_df_merged = pd.concat([entropy_df_merged, entropy_df])
-                    #print(entropy_df)
-                    pbar.update(n=1)
-                    i+=1
-                else:
-                    break
-
-        if entropy_param:
-            entropy_df_merged.to_csv(self.entropy_export, index=False)  
-            self.entropy_in_time_df = entropy_df_merged
-        else:
-            entropy_df_merged.to_csv(self.perc_disagreement_export, index=False)  
-            self.perc_disagreement_in_time = entropy_df_merged
-    
-    def minute_rounder(self, t):
-        '''
-        Rounds to nearest minute by adding a timedelta, minute if second >= 30.
-
-        :param t: datetime object
-        :return: datetime object rounded to nearest minute
-        '''
-
-        return (t.map(lambda x : x.replace(second=0, microsecond=0, minute=x.minute, hour=x.hour)
-                +timedelta(minutes=x.second//30)))
-
-    def ten_minute_rounder(self, dt):
-        return (dt.map(lambda x : x.replace(second=0, microsecond=0, minute=x.minute//10*10, hour=x.hour)))#
-
-    def hour_rounder(self, t):
-        return (t.map(lambda x : x.replace(second=0, microsecond=0, minute=0, hour=x.hour)
-                +timedelta(hours=x.minute//30)))
-    
-    def entropy_rounded(self):
-        print('Executing function entropy_rounded...')
-        df = pd.read_csv(self.entropy_export, low_memory=False)
-        df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S.%f') # adjust types
-        df_avg_entropy={}
-
-        for subm_id, sub_df in df.groupby('submission_id'):
-            sub_df.reset_index(drop=True, inplace=True)
-
-            # Compute the 18 hours threshold
-            start = sub_df['created'].iloc[0]  # df is already sorted by time ascending
-            eighteen_h = start + pd.Timedelta(18, 'h', hours=18)
-            sub_df.set_index('created', inplace=False)
-            ''' WRONG!!! # with this the x axis will be edges, not time
-            try:
-                temp.append(sub_df[sub_df['created'] > eighteen_h].index[0])
-            except IndexError:
-                continue'''
-            try:
-                thresh = sub_df[sub_df['created'] > eighteen_h].index.to_list()[0]  # first timestamp over 18h
-            except IndexError:
-                #thresh = sub_df.index[-1]  # if no timestamp over 18h, then take the last timestamp
-                continue # skip this submission
-            
-            # Round to minutes (edges to time)
-            sub_df['number'] = sub_df.index
-            sub_df['time_rounded'] = self.ten_minute_rounder(sub_df.created)
-            sub_df['time_int'] = sub_df['time_rounded'].diff().fillna(timedelta(0)).apply(lambda x: x.total_seconds() / 60)
-            sub_df['time_int'] = sub_df['time_int'].cumsum()
-            sub_df = sub_df.groupby(['time_rounded']).max() 
-            sub_df.set_index('time_int', inplace=True) 
-            col_name =f'{subm_id}_{str(sub_df.final_judg.unique())}'
-            serie = sub_df['entropy_in_time']
-            df_avg_entropy.update({col_name: serie})
-
-        # Dictionary to DataFrame
-        df_avg_entropy = pd.DataFrame(df_avg_entropy)
-        df_avg_entropy.to_csv(self.entropy_rounded_export, index=False)
-        self.df_avg_entropy = df_avg_entropy
-        
-    def entropy_in_time_plot(self):
-
-        # Load the dataframe
-        if os.path.exists(self.entropy_rounded_export):
-            self.df_avg_entropy = pd.read_csv(self.entropy_rounded_export)
-            print('Loading entropy rounded in time from file...')
-        else:
-            self.df_avg_entropy = self.entropy_rounded()
-
-        # Plot
-        fig = plt.figure(figsize=(10, 5))
-        ax = plt.gca()
-        labels = ['Not the A-hole', 'Asshole', 'No A-holes here', 'Everyone Sucks']
-        colors = ['b', 'r', 'b', 'r']
-        linestyles = ['solid', 'solid', 'dashed', 'dashed']
-        for label, color, linestyle in zip(labels, colors, linestyles):
-            columns = [col for col in self.df_avg_entropy.columns if col.endswith(f"['{label}']")]
-            temp_df = self.df_avg_entropy[columns]
-            temp_df['mean_at_timestamp'] = temp_df.mean(axis=1) #temp_df.mean(axis=1) # mean or variance ?
-            temp_df['time_int'] = temp_df.index
-            # Filter by duration
-            temp_df = temp_df[temp_df['time_int'] <= 8641] # limit of days in the plot
-            #plt.plot(temp_df['mean_at_timestamp'], linewidth=1.2, label=label, color=color, linestyle=linestyle)
-            sns.regplot(data=temp_df, y='mean_at_timestamp', x='time_int', order=2, label=label, color=color,
-                       line_kws=dict(alpha=1, color=color, linewidth=1.2, linestyle=linestyle),
-                       scatter_kws=dict(alpha=0.3, s=10, color=color, edgecolors='white'))
-
-        plt.xticks(np.arange(0, 8641, 1440))
-        plt.xticks(np.arange(0, 500, 20))
-        labels = [item.get_text() for item in ax.get_xticklabels()]
-        labels = [str(int(int(label)/60)) for label in labels]
-        ax.set_xticklabels(labels, fontsize=10)
-        plt.xlabel('Hours', fontsize=12)
-        plt.ylabel('Average Post Entropy', fontsize=12)
-        plt.yticks(np.arange(0, 2.6, 0.4))
-        plt.legend()
-        
-        plt.axvline(x=1080, color='green', linewidth=1, linestyle='dashed') # threshold after 18 hours (vertical line)
-        for x in range(0, 8641, 1440): # vertical lines up to day 5
-            plt.axvline(x=x, color='grey', linewidth=0.5, linestyle='dotted') 
-        plt.grid(axis='y') # add only horizontal grid
-        plt.show()
-        #plt.savefig('../data-analysis/paper_figs/entropy_in_time_by_final_judg.png', dpi=600)
+            df['number_of_votes'] = df['text_flair_list'].str.split(',').str.len() # no vote and 1 vote have both value 1 (because no comma)
+            df.loc[(df.number_of_votes > 1) & (df.text_flair.isna()), 'text_flair'] = 'unsure'
+            #print(df[df.number_of_votes > 1][['text_flair', 'text_flair_list', 'number_of_votes']])
+            # replace NaN with empty string
+            df['text_flair'] = df['text_flair'].fillna('')
+            df.to_csv(file_path, index=False)
+            print(f'Processed file {i}/{len(file_list)}')      
 
 class Prob:
     def __init__(self):
         # vars
-        self.processed_files_path='data/data-tidy/processed_CSV/'
-        self.user_nodelist_export = 'data/data-tidy/user_nodelist_per_post.csv'
+        self.processed_files_path='../data/data-tidy/processed_CSV/'
+        self.user_nodelist_export = '../data/data-tidy/user_nodelist_per_post.csv'
     
     def create_user_nodelist_per_post(self):
         final_nodelist = pd.DataFrame()
@@ -215,8 +135,8 @@ class Prob:
             file_path = os.path.join(self.processed_files_path, file_name)
             df = pd.read_csv(file_path, low_memory=False)
             df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S') # adjust types
-            df['text_flair'] = df['text_flair'].fillna('')
             for subm_id, sub_df in df.groupby('submission_id'):
+                sub_df.text_flair = sub_df.text_flair.fillna('unsure')
                 node_df=pd.DataFrame()
                 node_df[['author', 'entering_time']] = sub_df[['created', 'author']].groupby('author').min().reset_index()
                 node_df['post'] = subm_id
@@ -227,3 +147,77 @@ class Prob:
                 final_nodelist = pd.concat([node_df, final_nodelist])
                 final_nodelist.reset_index(drop=True, inplace=True)
         final_nodelist.to_csv(self.user_nodelist_export, index=False)
+    
+    def compute_prob(self, t=2):
+        
+        labels = ['ESH', 'NAH', 'NTA', 'YTA', 'unsure', '']
+        verdicts = ['Not the A-hole', 'Asshole', 'No A-holes here', 'Everyone Sucks']
+
+        e = Entropy()
+        df = e.user_nodelist(entropy_param=False) # import perc_disagreement_in_time 
+        df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S')
+        df.text_flair.fillna('', inplace=True) # no votes
+        prob_before=[]
+        prob_after=[]
+        final_verdicts_before = []
+        final_verdicts_after = []
+        for subm_id, sub_df in df.groupby('submission_id'):
+            # filter out threads that last less than 18+t hours
+            thread_duration = sub_df.created.max() - sub_df.created.min() 
+            if thread_duration < pd.Timedelta(hours=18+t):
+                continue # skip this submission because it does not last enough
+            else:                
+                sub_df.sort_values(by='created', inplace=True)
+                start = sub_df.iloc[0]['created']
+                eighteen_h = start + pd.Timedelta(18, 'h', hours=18)
+
+                # remove the rows with no votes
+                # sub_df = sub_df[~sub_df['text_flair'].isna()]
+                # TEMPORARLY REMOVED> we also consider them in the plot
+
+                # set the streshold (18h) and split the dataframe
+                sub_df_before = sub_df[sub_df['created'] < eighteen_h]
+                sub_df_after = sub_df[sub_df['created'] > eighteen_h]
+                sub_df_before.reset_index(drop=True, inplace=True)
+                sub_df_after.reset_index(drop=True, inplace=True)
+
+                if sub_df_after.empty:
+                    print(thread_duration, thread_duration < pd.Timedelta(hours=18+t))
+                    raise ValueError("Empty 'after' dataframe")
+
+                # decide timerange before and after (not to include the transition period)
+                # we arbitrarily decided 10 hours before and after the treshold
+                timerange = pd.Timedelta(t, 'h', hours=t) 
+                end_before = sub_df_before.iloc[-1]['created']
+                start_after = sub_df_after.iloc[0]['created']
+                sub_df_before = sub_df_before[sub_df_before['created'] > (end_before - timerange)]
+                sub_df_after = sub_df_after[sub_df_after['created'] < (start_after + timerange)]
+
+                final_verdicts_before.append(sub_df_before['final_judg'].values[0])
+                final_verdicts_after.append(sub_df_after['final_judg'].values[0])
+
+                # compute probability 
+                unique_votes, counts = np.unique(list(sub_df_before['text_flair']), return_counts=True)
+                prob_before.append(counts / len(sub_df_before['text_flair']))
+                #prob_before.append(counts)
+                unique_votes, counts = np.unique(list(sub_df_after['text_flair']), return_counts=True)
+                prob_after.append(counts / len(sub_df_after['text_flair']))
+                #prob_after.append(counts)
+
+        prob_before=pd.DataFrame(prob_before, columns=[labels])
+        prob_before['final_judg'] = final_verdicts_before
+        prob_after=pd.DataFrame(prob_after, columns=[labels])
+        prob_after['final_judg'] = final_verdicts_after
+
+        # fix multindex
+        prob_before.columns = [col[0] for col in prob_before.columns] 
+        prob_after.columns = [col[0] for col in prob_after.columns]
+                
+        #plot_ecdf(prob_before, prob_after, labels, verdicts, t)
+        plot_violin_diff(prob_before, prob_after, labels, verdicts, t)
+        #plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True)
+                    
+
+
+
+
