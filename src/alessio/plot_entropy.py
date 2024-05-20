@@ -7,6 +7,11 @@ path_rounded = '/Users/alessiogandelli/dev/uni/reddit-disagreement/data/data-tid
 path = '/Users/alessiogandelli/dev/uni/reddit-disagreement/data/data-tidy/entropy_in_time.csv'
 
 df = pd.read_csv(path)
+
+'''
+this file contains the code for plotting the entropy over the time for the top n threads with most comments 
+
+'''
 # %%
 # get the first n threads with most comments
 def get_first_n_threads(df, n=50):
