@@ -4,11 +4,15 @@ from utils import *
 import pandas as pd
 import seaborn as sns
 import numpy as np
-import kneed
+import kneed ### https://kneed.readthedocs.io/en/stable/api.html#kneelocator
 from datetime import timedelta
+import warnings
+warnings.filterwarnings("ignore")
+import igraph as ig
 
-p = Preprocess()
-p.preprocess_votes()
+b = Graph()
+df = b.create_graph()
+
 
 #%%
 
@@ -16,6 +20,7 @@ e = Entropy()
 
 df = e.user_nodelist()
 df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S') # adjust types
+knees = []
 variance_list_pre_18 = []
 variance_list_post_18 = []
 
@@ -32,20 +37,27 @@ for subm_id, sub_df in df.groupby('submission_id'):
     sub_df.reset_index(inplace=True, drop=True)
     
     # find elbow
-    kneedle = kneed.KneeLocator(x=sub_df.time_int, y=sub_df.entropy_in_time, curve="concave", direction="increasing")
+    kneedle = kneed.KneeLocator(x=sub_df.time_int, y=sub_df.entropy_in_time, curve="concave", direction="increasing", S=100)
     knee_point = kneedle.knee   
     #kneedle.plot_knee()
+    #plt.show()
+    knees.append(knee_point)
 
+    '''
     # compute variance elbow-->18h and 18h-->end
     start = sub_df['time_int'].iloc[0]  # df is already sorted by time ascending
     eighteen_h = start + 18*60 # 18 hours in minutes
     #print(start, knee_point, eighteen_h)
     variance_list_pre_18.append(sub_df[(sub_df['time_int'] > knee_point) & (sub_df['time_int'] < eighteen_h)].entropy_in_time.std())
     variance_list_post_18.append(sub_df[sub_df['time_int'] >= eighteen_h].entropy_in_time.std())
+    '''
+knees = [k for k in knees if k is not None]
+print(len(knees), min(knees), max(knees), np.mean(knees), np.std(knees))
+# 2932 0.0 24959.0 334.38369713506137 961.056692933871
 
-sns.histplot(variance_list_pre_18, bins=30, kde=True)
-sns.histplot(variance_list_post_18, bins=30, kde=True)
-plt.show()
+#sns.histplot(variance_list_pre_18, bins=30, kde=True)
+#sns.histplot(variance_list_post_18, bins=30, kde=True)
+#plt.show()
 
 exit(0)
 

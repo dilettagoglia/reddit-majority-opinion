@@ -5,8 +5,10 @@ from entropy_class import *
 import warnings
 warnings.filterwarnings("ignore")
 
-e = Entropy()
-e.user_nodelist(entropy_param=False)
+#e = Entropy()
+#e.user_nodelist(entropy_param=False)
 
+p = Prob()
+p.compute_prob(t=13)
 
 # %%

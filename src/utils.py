@@ -11,8 +11,9 @@ from sklearn.preprocessing import LabelEncoder
 import datetime as dt
 from matplotlib.patches import Patch
 from entropy_class import Entropy
+import igraph as ig
 
-def plot_ecdf(prob_before, prob_after, labels, verdicts, t):
+def _plot_ecdf(prob_before, prob_after, labels, verdicts, t):
     for v in range(len(verdicts)):
         fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5), sharex=True)
 
@@ -45,10 +46,11 @@ def plot_ecdf(prob_before, prob_after, labels, verdicts, t):
         #plt.savefig(f'../img/ECDF__{verdicts[v]}.png')
         plt.show()
 
-def plot_violin_diff(prob_before, prob_after, labels, verdicts, t):
+def _plot_violin_diff(prob_before, prob_after, labels, verdicts, t):
     for v in range(len(verdicts)):
-        fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5))
-        for i, ax in enumerate(axes.flatten()):
+        #fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5))
+        fig, ax = plt.subplots(figsize=(20,5))
+        for i in range(len(labels)):
             sns.violinplot(prob_after[prob_after['final_judg'] == verdicts[v]][labels[i]] - prob_before[prob_before['final_judg'] == verdicts[v]][labels[i]],  
                             ax=ax, color='blue')
             ax.set_xlabel(f'{labels[i]}')
@@ -56,13 +58,14 @@ def plot_violin_diff(prob_before, prob_after, labels, verdicts, t):
             ax.set_ylim([-1, 1])
             if i == 0:
                 ax.set_ylabel('Difference of probabilities (after - before)')
-
+            ax.hlines(0, -0.5, 0.5, colors='r', linestyles='dashed')
+            ax.grid(axis='y')
         plt.tight_layout()
         plt.suptitle(f'Final judg = {verdicts[v]} ({len(prob_before[prob_before["final_judg"] == verdicts[v]])} threads)')
         plt.savefig(f'../img/Violin_diff_{str(t)}h__{verdicts[v]}.png')
         plt.show()
 
-def plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True):
+def _plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True):
     prob_before['hue'] = 'before'
     prob_after['hue'] = 'after'
     prob_together = pd.concat([prob_before, prob_after])
@@ -213,11 +216,65 @@ class Prob:
         prob_before.columns = [col[0] for col in prob_before.columns] 
         prob_after.columns = [col[0] for col in prob_after.columns]
                 
-        #plot_ecdf(prob_before, prob_after, labels, verdicts, t)
-        plot_violin_diff(prob_before, prob_after, labels, verdicts, t)
-        #plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True)
+        #_plot_ecdf(prob_before, prob_after, labels, verdicts, t)
+        _plot_violin_diff(prob_before, prob_after, labels, verdicts, t)
+        #_plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True)
+        #_plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=False)
                     
+class Graph:
 
+    def __init__(self):
+        self.processed_files_path='../data/data-tidy/processed_CSV/'
+    
+    def create_graph(self):
+        '''
+        file_list = [f for f in os.listdir(self.processed_files_path) if f.endswith('.csv')]
+        i=0
+        for file_name in file_list:
+            i += 1
+            file_path = os.path.join(self.processed_files_path, file_name)'''
+        dict_a= {}
+        dict_e = {}
+        file_path = '../data/data-analysis/network-data/user_edgelists.csv'
+        df = pd.read_csv(file_path, low_memory=False)
+        df['created'] = pd.to_datetime(df['created'], format='%Y-%m-%d %H:%M:%S')
+
+        le = LabelEncoder()
+        df.vote = le.fit_transform(df.vote)
+
+        for subm_id, sub_df in df.groupby('root'):
+            # build igraph network for each submission 
+            if sub_df.shape[0] < 3:
+                continue
+            g = ig.Graph.TupleList(sub_df[['from', 'to']].itertuples(index=False), directed=True)
+            # with nodes ad edges attributes
+            g.es['created'] = sub_df['created'].values
+            g.vs['vote'] = sub_df['vote'].values
+
+            # compute assortativity 
+            assort = g.assortativity_nominal('vote', directed=True)
+            dict_a.update({subm_id: assort})
+        
+        entropy_df = pd.read_csv('../data/data-tidy/entropy_in_time.csv')
+        entropy_df['created'] = pd.to_datetime(entropy_df['created'], format='%Y-%m-%d %H:%M:%S')
+        for subm_id, sub_df in entropy_df.groupby('submission_id'):
+            # update dictionary
+            dict_e.update({subm_id: sub_df.entropy_in_time.max()})
+
+        #sns.histplot(dict_e['assortativity'], bins=30, kde=True)
+        #plt.show()
+
+        merged_df = pd.DataFrame(dict_a.items(), columns=['submission_id', 'assortativity'])
+        merged_df['entropy'] = merged_df['submission_id'].map(dict_e)
+        plt.scatter(merged_df['assortativity'], merged_df['entropy'], s=0.5, alpha=0.5)
+        #plt.yscale('log')
+        plt.xlabel('Assortativity')
+        plt.ylabel('Entropy')
+        plt.show()
+                
+        # print correlation coefficient and p value
+        print(merged_df[['assortativity', 'entropy']].corr(method='spearman'))
+        print(merged_df[['assortativity', 'entropy']].corr(method='kendall'))
 
 
 
