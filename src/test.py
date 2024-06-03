@@ -6,12 +6,36 @@ import seaborn as sns
 import numpy as np
 import kneed ### https://kneed.readthedocs.io/en/stable/api.html#kneelocator
 from datetime import timedelta
+import statsmodels.api as sm
 import warnings
 warnings.filterwarnings("ignore")
 import igraph as ig
 
-b = Graph()
-df = b.create_graph()
+#b = Graph()
+#df = b.create_graph(in_time=False, t=13)
+
+df = pd.read_csv('../data/data-tidy/threads_stats.csv')
+topics = pd.read_pickle('../data/data-analysis/topics.pkl')
+topics.set_index('id', inplace=True)
+topics_dict = topics['topic'].to_dict()
+df['topic'] = df['subm_id'].map(topics_dict)
+df.set_index('subm_id', inplace=True)
+print(df.info())
+
+#%%
+
+df = df.iloc[:, 3:]
+print(df)
+df = df.dropna()
+X = df[['num_comments', 'entropy', 'topic', 'avg_text_len', 'avg_comm_score', 'post_score', 'comment_frequency', 'thread_duration', 'post_sentiment', 'reciprocity', 'bursts', 'clust_coeff']]
+#X.drop(columns=['topic'], inplace=True)
+y = df['assortativity']
+X = sm.add_constant(X)
+model = sm.OLS(y, X).fit()
+print(model.summary())
+
+
+
 
 
 #%%
