@@ -1,0 +1,36 @@
+```{r}
+# Install the necessary packages
+install.packages("brms")
+library(brms)
+
+# Sample data
+data <- data.frame(
+  YTA_pre = c(0.6, 0.4, 0.5),
+  NTA_pre = c(0.3, 0.4, 0.2),
+  ESH_pre = c(0.1, 0.1, 0.2),
+  NAH_pre = c(0.0, 0.1, 0.1),
+  YTA_post = c(0.7, 0.35, 0.6),
+  NTA_post = c(0.2, 0.45, 0.15),
+  ESH_post = c(0.1, 0.15, 0.2),
+  NAH_post = c(0.0, 0.05, 0.05),
+  Verdict = c('YTA', 'NTA', 'YTA')
+)
+
+# Calculate differences
+data$YTA_diff <- data$YTA_post - data$YTA_pre
+
+# Fit Bayesian linear regression model
+fit <- brm(
+  formula = YTA_diff ~ YTA_pre + NTA_pre + ESH_pre + NAH_pre + Verdict,
+  data = data,
+  family = gaussian(),
+  prior = c(
+    set_prior("normal(0, 10)", class = "b"),
+    set_prior("normal(0, 10)", class = "Intercept")
+  ),
+  chains = 2, iter = 2000, warmup = 1000
+)
+
+# Summarize the model
+summary(fit)
+

@@ -6,7 +6,7 @@ authors = ["alessiogandelli <alessiogandelli99@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "3.11.6"
 pandas = "^2.1.0"
 matplotlib = "^3.7.2"
 python-dotenv = "^1.0.0"
@@ -14,7 +14,9 @@ jupyter = "^1.0.0"
 tqdm = "^4.66.4"
 scipy = "^1.13.0"
 seaborn = "^0.13.2"
-
+scikit-learn = "^1.5.0"
+statsmodels = "^0.14.2"
+tweets-to-topic-network = "^0.1.6"
 
 
 [build-system]
