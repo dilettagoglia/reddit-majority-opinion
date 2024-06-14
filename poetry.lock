@@ -5310,13 +5310,13 @@ tutorials = ["matplotlib", "pandas", "tabulate", "torch"]
 
 [[package]]
 name = "tweets-to-topic-network"
-version = "0.1.6"
+version = "0.1.9"
 description = "start from a set of tweets and create a multilayer network where each layer is a topic"
 optional = false
 python-versions = "<3.13,>=3.10"
 files = [
-    {file = "tweets_to_topic_network-0.1.6-py3-none-any.whl", hash = "sha256:5ea342ba73fbb114a2c176cf9a2f0c600bcd3604e9aae564aeb00b7c0411b62c"},
-    {file = "tweets_to_topic_network-0.1.6.tar.gz", hash = "sha256:e45c93bc69aca8f2e853e4059f7e874418e7e0ad32ccee80e18bf9bf6cdbf739"},
+    {file = "tweets_to_topic_network-0.1.9-py3-none-any.whl", hash = "sha256:72e6f5cbd62976578a158c5e81d0128292f2e5dd3fba29d2b8f5a95e88a2c676"},
+    {file = "tweets_to_topic_network-0.1.9.tar.gz", hash = "sha256:0695cb49281349d8202cfe7cf3fc93ff6a33e082192aa2ebe72e1d8c391a2e5f"},
 ]
 
 [package.dependencies]

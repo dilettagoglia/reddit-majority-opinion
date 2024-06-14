@@ -37,11 +37,10 @@ cache ='/Users/alessiogandelli/dev/uni/reddit-disagreement/data/cache/'
 # %%
 from tweets_to_topic_network.topic import Topic_modeler
 
-tm = Topic_modeler(posts, name = 'AITA', embedder_name='text-embedding-3-large', path_cache = cache)
+tm = Topic_modeler(posts, name = 'AITA', path_cache = cache)
 
 # %%
-df_labeled = tm.get_topics()
+df_labeled = tm.get_topics(nr_topics=5)
 
 
-df_labeled[df_labeled['topic'] == 13]['text'].values
 # %%
