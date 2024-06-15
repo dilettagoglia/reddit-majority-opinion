@@ -17,6 +17,7 @@ seaborn = "^0.13.2"
 scikit-learn = "^1.5.0"
 statsmodels = "^0.14.2"
 tweets-to-topic-network = "^0.1.6"
+accelerate = "^0.31.0"
 
 
 [build-system]
