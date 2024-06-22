@@ -53,9 +53,9 @@ def _plot_ecdf(prob_before, prob_after, labels, verdicts, t):
 
 def _plot_violin_diff(prob_before, prob_after, labels, verdicts, t):
     for v in range(len(verdicts)):
-        #fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5))
-        fig, ax = plt.subplots(figsize=(20,5))
-        for i in range(len(labels)):
+        fig, axes = plt.subplots(nrows=1, ncols=6, figsize=(20, 5))
+
+        for i, ax in enumerate(axes.flatten()):
             sns.violinplot(prob_after[prob_after['final_judg'] == verdicts[v]][labels[i]] - prob_before[prob_before['final_judg'] == verdicts[v]][labels[i]],  
                             ax=ax, color='blue')
             ax.set_xlabel(f'{labels[i]}')
@@ -70,6 +70,7 @@ def _plot_violin_diff(prob_before, prob_after, labels, verdicts, t):
         plt.savefig(f'../img/Violin_diff_{str(t)}h__{verdicts[v]}.png')
         plt.show()
 
+       
 def _plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True):
     prob_before['hue'] = 'before'
     prob_after['hue'] = 'after'
@@ -172,7 +173,7 @@ class Prob:
         for subm_id, sub_df in df.groupby('submission_id'):
             # filter out threads that last less than 18+t hours
             thread_duration = sub_df.created.max() - sub_df.created.min() 
-            if thread_duration < pd.Timedelta(hours=18+t):
+            if thread_duration < pd.Timedelta(hours=18+t): # +t removed
                 continue # skip this submission because it does not last enough
             else:                
                 sub_df.sort_values(by='created', inplace=True)
@@ -190,41 +191,62 @@ class Prob:
                 sub_df_after.reset_index(drop=True, inplace=True)
 
                 if sub_df_after.empty:
-                    print(thread_duration, thread_duration < pd.Timedelta(hours=18+t))
+                    print(thread_duration, thread_duration < pd.Timedelta(hours=18+t)) # +t removed
                     raise ValueError("Empty 'after' dataframe")
+                
+                # recompute distribution of df after starting the counting from 0 
+                sub_df_after[['ESH_perc', 'NAH_perc', 'NTA_perc', 'YTA_perc', 'unsure_perc', 'no_vote_perc']] = sub_df_after.apply(lambda x: pd.Series(e.compute_post_entropy(sub_df_after[sub_df_after.created <= x.created], entropy_param=False)), axis=1)
+                #print('Recomputing successful')
 
                 # decide timerange before and after (not to include the transition period)
                 # we arbitrarily decided 10 hours before and after the treshold
-                timerange = pd.Timedelta(t, 'h', hours=t) 
-                end_before = sub_df_before.iloc[-1]['created']
-                start_after = sub_df_after.iloc[0]['created']
-                sub_df_before = sub_df_before[sub_df_before['created'] > (end_before - timerange)]
-                sub_df_after = sub_df_after[sub_df_after['created'] < (start_after + timerange)]
+                #timerange = pd.Timedelta(t, 'h', hours=t) 
+                #end_before = sub_df_before.iloc[-1]['created']
+                #start_after = sub_df_after.iloc[0]['created']
+                #sub_df_before = sub_df_before[sub_df_before['created'] > (end_before - timerange)]
+                #sub_df_after = sub_df_after[sub_df_after['created'] < (start_after + timerange)]
+
+                # we take the same number of comments
+                #if len(sub_df_after) < 50:
+                #    continue
+                #sub_df_before = sub_df_before.tail(50)
+                #sub_df_after = sub_df_after.head(50)
+
+                sub_df_before.reset_index(drop=True, inplace=True)
+                sub_df_after.reset_index(drop=True, inplace=True)
+
+                #print(sub_df_before, sub_df_after)
 
                 final_verdicts_before.append(sub_df_before['final_judg'].values[0])
                 final_verdicts_after.append(sub_df_after['final_judg'].values[0])
 
                 # compute probability 
                 unique_votes, counts = np.unique(list(sub_df_before['text_flair']), return_counts=True)
-                prob_before.append(counts / len(sub_df_before['text_flair']))
-                #prob_before.append(counts)
+                dict_bef = dict(zip(unique_votes, counts / len(sub_df_before['text_flair'])))
+                prob_before.append(dict_bef)
+                
                 unique_votes, counts = np.unique(list(sub_df_after['text_flair']), return_counts=True)
-                prob_after.append(counts / len(sub_df_after['text_flair']))
-                #prob_after.append(counts)
+                dict_aft = dict(zip(unique_votes, counts / len(sub_df_after['text_flair'])))
+                prob_after.append(dict_aft)
+                            
+                #print(prob_before, prob_after)
 
-        prob_before=pd.DataFrame(prob_before, columns=[labels])
+        prob_before=pd.DataFrame(prob_before)
         prob_before['final_judg'] = final_verdicts_before
-        prob_after=pd.DataFrame(prob_after, columns=[labels])
+        prob_after=pd.DataFrame(prob_after)
         prob_after['final_judg'] = final_verdicts_after
 
-        # fix multindex
-        prob_before.columns = [col[0] for col in prob_before.columns] 
-        prob_after.columns = [col[0] for col in prob_after.columns]
+        prob_before.fillna(0, inplace=True)
+        prob_after.fillna(0, inplace=True)
+        print(prob_before, '\n', prob_after)
+
+        prob_before.to_csv(f'../data/data-tidy/prob_before_{str(t)}h.csv', index=False)
+        prob_after.to_csv(f'../data/data-tidy/prob_after_{str(t)}h.csv', index=False)
                 
         #_plot_ecdf(prob_before, prob_after, labels, verdicts, t)
         _plot_violin_diff(prob_before, prob_after, labels, verdicts, t)
-        #_plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True)
-        #_plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=False)
+        _plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=True)
+        _plot_comparison(prob_before, prob_after, labels, verdicts, t, violin=False)
                     
 class Graph:
 
