@@ -40,7 +40,7 @@ with open('../data/posts_ids.txt') as f:
     
 
 
-
+### SENTIMENT
 
 #%%
 #t=13
@@ -113,7 +113,7 @@ plt.xlabel('Distribution Index')
 plt.show()
 
 
-#%%
+#%% TOPICS
 
 df = pd.read_csv('../data/data-tidy/threads_stats.csv')
 topics = pd.read_pickle('../data/data-analysis/topics.pkl')
