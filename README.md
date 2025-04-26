@@ -25,50 +25,35 @@ _[InfoLab](https://uuinfolab.github.io/), Department of Information Technology, 
 
 
 ## Abstract
-This repository contains the code and data used in the paper "Understanding Majority Opinion's Impact on Individuals in Online Conversations" by Diletta Goglia, Alessio Gandelli, and Davide Vega. The work investigates the structure and dynamics of Reddit threads as growing networks, focusing on the reciprocity metric over time. The analysis is based on a dataset of 1,000 Reddit threads, which includes metadata and text data. The code is organized into modules for data preparation, preprocessing, and analysis.
+Individuals' opinions and judgments are shaped by interactions with others and by the social context in which they occur, especially on social media platforms where users encounter an overload of different actors, communities, and information. Such exposure significantly influences users' beliefs and behaviors and deeply impacts their opinion expression as demonstrated by diverse social psychology theories, such as the spiral of silence.
+While the impact of groups on individual opinions has been extensively studied in offline contexts, its online equivalent lacks comprehensive understanding.
+In particular, estimating the opinion of a group in online discussions is a complex task, as is assessing users' exposure to it and measuring its influence on them. 
+Nonetheless, the existing literature studied online opinion dynamics primarily (i) collecting evidence from controlled and regulated environments (e.g., surveys and lab settings), and (ii) focusing on digital conversations about a narrow set of topics (such as political debates).
 
-## Directory structure 
-```
-ROOT
-  │── src/
-  │    │── utilities.py                     
+In this work, we measure how users' judgments about morally ambiguous social dilemmas are influenced by the opinion of the majority group on online platforms. 
+We utilize digital footprints (i.e., more than 6 million comments gathered from spontaneous online discussions) collected from the Reddit community \textit{r/AmItheAsshole}, where users participate to judge each other based on stories narrating everyday moral dilemmas and morally ambiguous behaviors.
+%Our dataset consists of more than 6 million Reddit comments from \textit{r/AmItheAsshole}, an online community where people participate to express judgments about other users based on morally ambiguous behaviors. 
+In the community, the most popular opinion is publicly revealed after some time: we leverage this information to examine if and how users' judgments change after such majority opinion is unveiled. We use a Bayesian multivariate regression %analysis 
+approach to assess such impact.
 
-```
+Our analysis reveals that users' judgment behavior changes in quantity but not in quality (i.e., the amount of expressed judgments decreases, but, at the same time, the type of expressed judgment does not). Users are not adapting their individual judgments to the majority opinion while not collectively diverging from it, indicating that the majority is not influencing their own judgments. We interpret our findings using social psychology theories, emphasizing the different social norms that regulate online and offline interactions. This research contributes to a deeper understanding of opinion dynamics in online environments, highlighting the unique mechanisms that govern social influence in digital communities. 
+
+      
+
 
 # Resources
-Download the dataset here:  <a href="https://doi.org/10.5281/zenodo.13620016"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.13620016.svg" alt="DOI"></a>
+TBD
 
 
 
 # Fundings
-Open access funding provided by Uppsala University. This work has been partly funded by [eSSENCE](https://www.essenceofescience.se/w/es/en), an e-Science collaboration funded as a strategic research area of Sweden. The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript.
+This work has been partly funded by eSSENCE, an e-Science collaboration funded as a strategic research area of Sweden. The computations were enabled by resources provided by the National Academic Infrastructure for Supercomputing in Sweden (NAISS), partially funded by the Swedish Research Council through grant agreement no. 2022-06725. The funders had no role in study design, data collection and analysis, decision to publish, or preparation of the manuscript.
 
 # Rights
 This work is licensed under the [MIT License](/LICENSE).
 
-- If you use this **code**, please cite the following paper:
-> WORK IN PROGRESS
 
-```tex
-@article{Goglia2025,
-  author = {Diletta Goglia, Alessio Gandelli and Davide Vega},
-  title = {titolo},
-  month = {soon},
-  year = {2025},
-  doi = {boh},
-  url = {boh},
-  journal = {topolino},
- }
-```
 
-- If you use the **data** included in this work, please ALSO cite the following source:
-
-> Goglia, D. Structure and dynamics of growing networks of Reddit threads [Dataset], v1.0. Appl Netw Sci 9, 48 (2024). [10.5281/zenodo.13620016](https://doi.org/10.5281/zenodo.13620016)
-
-```tex
-@misc{Goglia2025Zenodo,
-}
-```
 
 
 # Contact 
