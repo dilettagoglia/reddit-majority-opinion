@@ -5,11 +5,11 @@
 
 # Understanding Majority Opinion's Impact on Individuals in Online Conversations
 **[Diletta Goglia](https://orcid.org/0000-0002-2622-7495), 
-[Alessio Gandelli](https://gandelli.dev/),
+[Alessio Gandelli]([https://gandelli.dev/](https://orcid.org/0000-0002-6249-4144)),
 [Davide Vega](https://orcid.org/0000-0001-8795-1957)**</br>[diletta.goglia@it.uu.se](mailto:diletta.goglia@it.uu.se) (D.G.), [davide.vega@it.uu.se](mailto:davide.vega@it.uu.se) (D.V.)
 
 
-_[InfoLab](https://uuinfolab.github.io/), Department of Information Technology, Uppsala University, Uppsala, Sweden_
+_[UU-InfoLab](https://uuinfolab.github.io/), Department of Information Technology, Uppsala University, Uppsala, Sweden_
 
 
 <a href="https://doi.org/10.1007/s41109-024-00654-y"><img src="https://zenodo.org/badge/DOI/10.1007/s41109-024-00654-y.svg" alt="DOI"></a></br>
